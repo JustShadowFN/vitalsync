@@ -2,11 +2,7 @@ const express = require("express");
 const app = express();
 
 app.get("/health", (req, res) => {
-<<<<<<< HEAD
   res.json({ status: "ok", service: "vitalsync-api", version: "1.0.0", uptime: process.uptime(), timestamp: new Date() });
-=======
-  res.json({ status: "ok", env: process.env.NODE_ENV });
->>>>>>> feature/conflict-demo
 });
 
 app.get("/api/activities", (req, res) => {
