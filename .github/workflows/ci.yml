@@ -1,0 +1,136 @@
+name: CI/CD Pipeline – VitalSync
+
+# Déclencheurs :
+# - push sur develop : valide chaque commit de développement en continu
+# - pull_request vers main : valide le code avant toute fusion en production
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BACKEND: ghcr.io/${{ github.repository_owner }}/vitalsync-backend
+  IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/vitalsync-frontend
+
+jobs:
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 1 : Lint & Tests
+  # Vérifie la qualité du code (ESLint) et exécute les tests unitaires (Jest).
+  # Si cette étape échoue, les jobs suivants ne se déclenchent pas.
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint-and-test:
+    name: Lint & Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du code source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Installation des dépendances
+        working-directory: backend
+        run: npm ci
+
+      - name: Lint ESLint
+        working-directory: backend
+        run: npx eslint . --ext .js --max-warnings 0
+
+      - name: Tests unitaires Jest
+        working-directory: backend
+        run: npm test
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 2 : Build & Push Docker
+  # Construit les images backend et frontend, les tague avec le SHA du commit
+  # (reproductibilité) et les pousse vers GHCR.
+  # Le SHA est préférable à "latest" car il identifie précisément quelle version
+  # du code est embarquée dans l'image – indispensable pour le rollback.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout du code source
+        uses: actions/checkout@v4
+
+      - name: Connexion à GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et push image backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+            ${{ env.IMAGE_BACKEND }}:latest
+
+      - name: Build et push image frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+            ${{ env.IMAGE_FRONTEND }}:latest
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Job 3 : Déploiement staging
+  # Simule un déploiement via docker-compose sur le runner GitHub Actions.
+  # Un health check vérifie que le back-end répond correctement.
+  # La pipeline échoue si le health check ne retourne pas HTTP 200.
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy Staging
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout du code source
+        uses: actions/checkout@v4
+
+      - name: Création du fichier .env depuis les secrets
+        run: |
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> .env
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+
+      - name: Démarrage des services avec Docker Compose
+        run: docker compose up -d --build
+
+      - name: Attente démarrage des services (15s)
+        run: sleep 15
+
+      - name: Health check back-end
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check échoué : HTTP $STATUS"
+            docker compose logs backend
+            exit 1
+          fi
+          echo "Health check réussi : HTTP $STATUS"
+
+      - name: Arrêt des services
+        if: always()
+        run: docker compose down -v

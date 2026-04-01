@@ -1,0 +1,28 @@
+# Node.js – les dépendances sont réinstallées via npm ci, pas à versionner
+node_modules/
+
+# Logs npm générés en cas d'erreur d'installation
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Variables d'environnement – contiennent des secrets, jamais dans Git
+.env
+.env.local
+.env.*.local
+
+# Fichier .env.example est commité volontairement (contient des placeholders, pas de secrets)
+
+# Build outputs – artefacts générés, pas du source code
+dist/
+build/
+
+# Système d'exploitation
+.DS_Store
+Thumbs.db
+
+# Éditeurs / IDE
+.vscode/
+.idea/
+*.swp
+*.swo

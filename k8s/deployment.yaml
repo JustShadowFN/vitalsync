@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vitalsync-backend
+  labels:
+    app: vitalsync-backend
+spec:
+  # 2 réplicas : assure la haute disponibilité sans surcoût inutile.
+  # 1 réplica = point de défaillance unique. 3 réplicas = surdimensionné pour ce stade.
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vitalsync-backend
+  template:
+    metadata:
+      labels:
+        app: vitalsync-backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/vitalsync/vitalsync-backend:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vitalsync-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: vitalsync-db-secret
+                  key: POSTGRES_USER
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: vitalsync-db-secret
+                  key: POSTGRES_DB
+          # Liveness probe : Kubernetes vérifie toutes les 10s que /health répond.
+          # Si elle échoue 3 fois de suite, le pod est redémarré automatiquement.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

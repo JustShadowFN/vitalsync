@@ -1,0 +1,29 @@
+# Service ClusterIP : expose le back-end en interne dans le cluster.
+# ClusterIP = accessible uniquement depuis les autres pods du cluster, jamais depuis internet.
+# C'est le bon choix pour un service interne comme l'API backend.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vitalsync-backend-svc
+spec:
+  selector:
+    app: vitalsync-backend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+# Service pour le front-end (même fichier pour simplifier)
+apiVersion: v1
+kind: Service
+metadata:
+  name: vitalsync-frontend-svc
+spec:
+  selector:
+    app: vitalsync-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP

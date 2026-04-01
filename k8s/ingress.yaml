@@ -1,0 +1,29 @@
+# Ingress : point d'entrée unique pour le trafic externe.
+# Préféré à NodePort car il gère le routage HTTP/HTTPS par chemin et par domaine,
+# ce qui permet de servir frontend et API depuis la même adresse publique.
+# NodePort exposerait un port aléatoire, moins propre pour la production.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vitalsync-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - host: vitalsync.example.com
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: vitalsync-backend-svc
+                port:
+                  number: 3000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vitalsync-frontend-svc
+                port:
+                  number: 80

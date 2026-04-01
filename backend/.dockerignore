@@ -1,0 +1,25 @@
+# Dépendances Node – réinstallées dans le conteneur, inutile de les copier
+node_modules/
+
+# Dossier Git – informations de versioning, inutiles dans l'image
+.git/
+.gitignore
+
+# Documentation – ne sert pas à l'exécution
+README.md
+
+# Variables d'environnement – ne jamais inclure dans une image Docker
+.env
+.env.*
+.env.example
+
+# Fichiers de test – présents uniquement dans le stage builder, pas en prod
+test/
+*.test.js
+
+# Logs npm
+npm-debug.log*
+
+# Fichier Docker lui-même
+Dockerfile
+.dockerignore
